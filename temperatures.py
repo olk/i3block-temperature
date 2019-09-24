@@ -19,6 +19,7 @@
 import re
 from ipmi import Tool
 from nvidia import Smi
+from nvme import NVMe
 from subprocess import Popen, PIPE
 
 def fork_gpu():
@@ -61,8 +62,25 @@ def process_cpu_pch_temp(status):
     data += "  PCH: %s°C " % match.group(1)
     return data.strip()
 
+def fork_nvme():
+    options = NVMe.QueryOptions()
+    options.temperature()
+    tool = NVMe(options)
+    return tool.execute();
+
+def process_nvme_temp(status):
+    exit_code, out, _ = status.wait()
+    if 0 != exit_code:
+        raise RuntimeError("failed to execute smartctl")
+    data = "NVMe: "
+    matches = re.findall(r'Temperature:\s+(\d+) Celsius', out)
+    for match in matches:
+        data += "%s°C " % match
+    return data.strip()
+
 
 if __name__ == "__main__":
     status_gpu = fork_gpu()
     status_cpu_pch = fork_cpu_pch()
-    print(process_gpu_temp(status_gpu) + "  " + process_cpu_pch_temp(status_cpu_pch))
+    status_nvme = fork_nvme()
+    print(process_gpu_temp(status_gpu) + "  " + process_cpu_pch_temp(status_cpu_pch) + "  " + process_nvme_temp(status_nvme))
